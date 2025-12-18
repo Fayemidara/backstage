@@ -1,0 +1,108 @@
+{
+  "name": "Paystack Subscription Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "paystack-webhook",
+        "options": {}
+      },
+      "name": "Paystack Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "value": "={{ $json.body.event }}",
+        "dataPropertyName": "event_type"
+      },
+      "name": "Extract Event",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.event_type }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "charge.success"
+            }
+          ]
+        }
+      },
+      "name": "Check Event Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "tableId": "subscriptions",
+        "operation": "upsert",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $node['Paystack Webhook'].json.body.data.metadata.user_id }}",
+            "artist_id": "={{ $node['Paystack Webhook'].json.body.data.metadata.artist_id }}",
+            "community_id": "={{ $node['Paystack Webhook'].json.body.data.metadata.community_id }}",
+            "status": "active",
+            "paystack_reference": "={{ $node['Paystack Webhook'].json.body.data.reference }}",
+            "current_period_start": "={{ $node['Paystack Webhook'].json.body.data.paid_at }}",
+            "current_period_end": "={{ new Date(new Date($node['Paystack Webhook'].json.body.data.paid_at).setMonth(new Date($node['Paystack Webhook'].json.body.data.paid_at).getMonth() + 1)).toISOString() }}",
+            "payment_provider": "paystack"
+          },
+          "matchingColumns": ["user_id", "community_id"]
+        }
+      },
+      "name": "Update Subscription",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [700, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Paystack Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Event": {
+      "main": [
+        [
+          {
+            "node": "Check Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Event Type": {
+      "main": [
+        [
+          {
+            "node": "Update Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
